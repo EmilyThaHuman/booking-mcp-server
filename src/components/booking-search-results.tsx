@@ -311,7 +311,7 @@ const BookingSearchResults: React.FC = () => {
 
   if (accommodations.length === 0) {
     return (
-      <div className="w-full p-10 text-center text-gray-500">
+      <div className="w-full p-10 text-center text-gray-500 dark:text-gray-400">
         No accommodations found
       </div>
     );
@@ -326,7 +326,7 @@ const BookingSearchResults: React.FC = () => {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {accommodations.map((acc, index) => {
-            const badgeClass = 'bg-[#003b95] text-white';
+            const badgeClass = 'bg-[#003b95] text-white dark:bg-blue-600';
             const topFacilities = acc.facilities.slice(0, 3);
 
             return (
@@ -342,17 +342,13 @@ const BookingSearchResults: React.FC = () => {
                   onClick={() => handleAccommodationClick(acc)}
                   className={cn(
                     "rounded-3xl overflow-hidden h-full",
-                    "transition-all duration-300 cursor-pointer flex flex-col"
+                    "transition-all duration-300 cursor-pointer flex flex-col",
+                    "bg-transparent",
+                    "hover:shadow-lg dark:hover:shadow-gray-900/50"
                   )}
                 >
-                  {acc.sustainability?.certified && (
-                    <div className="absolute top-5 left-5 z-10 px-2 py-1 bg-green-700/95 text-white rounded-lg text-xs font-bold flex items-center gap-1">
-                      Level {acc.sustainability.level}
-                    </div>
-                  )}
-                  
                   <div className="flex-shrink-0 flex items-center justify-center">
-                    <figure className="relative w-[270px] h-[270px] overflow-hidden bg-gray-100 rounded-3xl mt-3">
+                    <figure className="relative w-[270px] h-[270px] overflow-hidden bg-gray-100 dark:bg-gray-700 rounded-3xl mt-3">
                       <img
                         alt={acc.name}
                         className="w-full h-full object-cover block"
@@ -382,16 +378,16 @@ const BookingSearchResults: React.FC = () => {
                         </div>
                       </div>
                       
-                      <h3 className="text-base font-semibold leading-snug text-gray-900 mb-1 line-clamp-2">
+                      <h3 className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100 mb-1 line-clamp-2">
                         {acc.name}
                       </h3>
                       
-                      <div className="flex items-center gap-1.5 text-sm text-gray-600 mb-2">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 mb-2">
                         {getAccommodationTypeIcon(acc.type)}
                         <span className="capitalize">{acc.type.replace(/-/g, ' ')}</span>
                       </div>
                       
-                      <div className="text-sm text-gray-600 mb-2">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                         {acc.reviewCount ? `${acc.reviewCount.toLocaleString()} reviews` : 'No reviews'}
                       </div>
                       
@@ -400,8 +396,8 @@ const BookingSearchResults: React.FC = () => {
                           {topFacilities.map((facility, idx) => {
                             const icon = getFacilityIcon(facility);
                             return (
-                              <div key={idx} className="flex items-center gap-2 text-xs text-gray-600">
-                                <span className="text-gray-500">{icon || <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/></svg>}</span>
+                              <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                <span className="text-gray-500 dark:text-gray-400">{icon || <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/></svg>}</span>
                                 <span>{facility}</span>
                               </div>
                             );
@@ -412,10 +408,10 @@ const BookingSearchResults: React.FC = () => {
 
                     <div className="mt-auto pt-3">
                       <div className="flex items-baseline gap-1 mb-2">
-                        <div className="text-2xl font-bold text-gray-900">
+                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                           ${acc.pricePerNight.toLocaleString()}
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                           per night
                         </div>
                       </div>
@@ -423,7 +419,8 @@ const BookingSearchResults: React.FC = () => {
                         className={cn(
                           "w-full bg-gray-900 text-white border-none rounded-3xl py-2.5 px-4",
                           "text-sm font-semibold cursor-pointer transition-colors duration-200",
-                          "hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                          "hover:bg-gray-800",
+                          "dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                         )}
                         style={{ zIndex: 200 }}
                       >
@@ -443,14 +440,14 @@ const BookingSearchResults: React.FC = () => {
             onClick={scrollPrev}
             disabled={!showPrevButton}
             className={cn(
-              "pointer-events-auto w-10 h-10 rounded-3xl bg-white border border-gray-300",
+              "pointer-events-auto w-10 h-10 rounded-3xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600",
               "shadow-md cursor-pointer flex items-center justify-center transition-all duration-200 mx-2",
-              "hover:bg-gray-50 hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed",
+              "hover:bg-gray-50 dark:hover:bg-gray-700 hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed",
               !showPrevButton && "opacity-0 pointer-events-none"
             )}
             aria-label="Show previous card"
           >
-            <svg className="w-6 h-6 stroke-gray-900" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 stroke-gray-900 dark:stroke-gray-100" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
           </button>
@@ -458,14 +455,14 @@ const BookingSearchResults: React.FC = () => {
             onClick={scrollNext}
             disabled={!showNextButton}
             className={cn(
-              "pointer-events-auto w-10 h-10 rounded-3xl bg-white border border-gray-300",
+              "pointer-events-auto w-10 h-10 rounded-3xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600",
               "shadow-md cursor-pointer flex items-center justify-center transition-all duration-200 mx-2",
-              "hover:bg-gray-50 hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed",
+              "hover:bg-gray-50 dark:hover:bg-gray-700 hover:scale-105 disabled:opacity-30 disabled:cursor-not-allowed",
               !showNextButton && "opacity-0 pointer-events-none"
             )}
             aria-label="Show next card"
           >
-            <svg className="w-6 h-6 stroke-gray-900" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 stroke-gray-900 dark:stroke-gray-100" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>
