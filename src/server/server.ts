@@ -922,7 +922,9 @@ const ssePath = "/mcp";
 const postPath = "/mcp/messages";
 
 async function handleSseRequest(res: ServerResponse) {
+  // CORS headers are already set by main handler, but SSE needs them early
   res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
   const server = createBookingServer();
   const transport = new SSEServerTransport(postPath, res);
   const sessionId = transport.sessionId;
@@ -954,8 +956,10 @@ async function handlePostMessage(
   res: ServerResponse,
   url: URL
 ) {
+  // CORS headers are already set by main handler
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
   const sessionId = url.searchParams.get("sessionId");
 
   if (!sessionId) {
@@ -983,8 +987,30 @@ async function handlePostMessage(
 const portEnv = Number(process.env.PORT ?? 8000);
 const port = Number.isFinite(portEnv) ? portEnv : 8000;
 
+// Helper function to set CORS headers
+function setCorsHeaders(res: ServerResponse, origin?: string) {
+  const allowedOrigins = [
+    'https://zerotwo.ai',
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite dev server
+  ];
+  
+  const requestOrigin = origin || '*';
+  const allowOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : '*';
+  
+  res.setHeader("Access-Control-Allow-Origin", allowOrigin);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
 const httpServer = createServer(
   async (req: IncomingMessage, res: ServerResponse) => {
+    const origin = req.headers.origin;
+    
+    // Set CORS headers on all responses
+    setCorsHeaders(res, origin);
+    
     if (!req.url) {
       res.writeHead(400).end("Missing URL");
       return;
@@ -996,11 +1022,7 @@ const httpServer = createServer(
       req.method === "OPTIONS" &&
       (url.pathname === ssePath || url.pathname === postPath)
     ) {
-      res.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
-      });
+      res.writeHead(204);
       res.end();
       return;
     }
