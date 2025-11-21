@@ -1,0 +1,1 @@
+import{c as s,j as e,R as r,B as c}from"./booking-search-results-_AdODVlG.js";function n(){return e.jsx("div",{className:"min-h-screen bg-gray-100 flex items-center justify-center p-4",children:e.jsx("div",{className:"w-[760px]",children:e.jsx(c,{})})})}const t=document.getElementById("root");t&&s.createRoot(t).render(e.jsx(r.StrictMode,{children:e.jsx(n,{})}));

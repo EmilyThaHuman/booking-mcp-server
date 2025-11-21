@@ -1,133 +1,35 @@
 /**
  * Cloudflare Worker for Booking.com MCP Server
- * This worker handles SSE connections and MCP protocol for ChatGPT integration
+ * This worker handles MCP protocol for ChatGPT integration
  */
 
 import { z } from "zod";
+import { WIDGET_HTML } from "./widget-html.js";
 
 // Widget definition
 const WIDGET = {
-  id: "accomodations.search",
+  id: "accommodations_search",
   title: "Booking.com Accommodation Search",
-  templateUri: "ui://widget/booking-com-search-results.html",
+  templateUri: "ui://widget/booking-search-results.html",
   invoking: "Searching for stays on Booking.com...",
   invoked: "Results from Booking.com ready",
 };
 
-// UI Component as embedded HTML
-const UI_COMPONENT = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Booking.com Search Results</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; background: #f5f5f7; }
-    .header { margin-bottom: 24px; }
-    .search-title { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
-    .search-subtitle { font-size: 16px; color: #666; }
-    .filters-applied { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .filter-tag { padding: 6px 12px; background: #003b95; color: white; border-radius: 16px; font-size: 13px; font-weight: 500; }
-    .accommodations-container { display: grid; gap: 16px; }
-    .accommodation-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: all 0.3s; cursor: pointer; display: flex; position: relative; }
-    .accommodation-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.12); }
-    .accommodation-image { width: 280px; height: 220px; object-fit: cover; background: #e0e0e0; }
-    .accommodation-info { flex: 1; padding: 20px; }
-    .accommodation-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
-    .accommodation-name { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
-    .accommodation-type { display: inline-block; padding: 4px 10px; background: #f0f0f0; color: #666; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: capitalize; margin-bottom: 8px; }
-    .accommodation-price { text-align: right; }
-    .price-amount { font-size: 28px; font-weight: 800; color: #003b95; }
-    .price-label { font-size: 13px; color: #666; }
-    .accommodation-rating { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-    .rating-badge { padding: 6px 10px; background: #003b95; color: white; border-radius: 8px 8px 8px 0; font-weight: 700; font-size: 16px; }
-    .rating-text { font-weight: 600; font-size: 14px; }
-    .review-count { font-size: 13px; color: #666; }
-    .accommodation-location { font-size: 14px; color: #666; margin-bottom: 12px; }
-    .facilities { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .facility { padding: 6px 12px; background: #e8f5e9; color: #2e7d32; border-radius: 16px; font-size: 12px; font-weight: 500; }
-    .cancellation { font-size: 13px; color: #2e7d32; font-weight: 600; margin-top: 8px; }
-    .sustainability-badge { position: absolute; top: 12px; left: 12px; padding: 6px 12px; background: rgba(46, 125, 50, 0.95); color: white; border-radius: 6px; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
-    @media (max-width: 768px) { .accommodation-card { flex-direction: column; } .accommodation-image { width: 100%; height: 200px; } }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script>
-    (function() {
-      const props = window.__WIDGET_PROPS__ || {};
-      const { accommodations = [], destination = '', checkIn = '', checkOut = '', nights = 0, totalResults = 0, filters = {} } = props;
-      
-      const root = document.getElementById('root');
-      const header = document.createElement('div');
-      header.className = 'header';
-      
-      let headerHTML = '<div class="search-title">' + destination + '</div>';
-      headerHTML += '<div class="search-subtitle">';
-      if (checkIn && checkOut) headerHTML += checkIn + ' - ' + checkOut + ' · ' + nights + ' night' + (nights > 1 ? 's' : '') + ' · ';
-      headerHTML += totalResults + ' properties found</div>';
-      
-      if (filters.accommodationType || filters.facilities || filters.minPrice || filters.maxPrice || filters.rating) {
-        headerHTML += '<div class="filters-applied">';
-        if (filters.accommodationType) headerHTML += '<span class="filter-tag">' + filters.accommodationType + '</span>';
-        if (filters.facilities) filters.facilities.forEach(f => { headerHTML += '<span class="filter-tag">' + f + '</span>'; });
-        if (filters.minPrice || filters.maxPrice) {
-          const priceText = filters.minPrice && filters.maxPrice ? '$' + filters.minPrice + '-$' + filters.maxPrice : filters.minPrice ? 'Above $' + filters.minPrice : 'Below $' + filters.maxPrice;
-          headerHTML += '<span class="filter-tag">' + priceText + '</span>';
-        }
-        if (filters.rating) headerHTML += '<span class="filter-tag">' + filters.rating + '+ rating</span>';
-        headerHTML += '</div>';
-      }
-      
-      header.innerHTML = headerHTML;
-      root.appendChild(header);
-      
-      const container = document.createElement('div');
-      container.className = 'accommodations-container';
-      
-      if (accommodations.length === 0) {
-        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">No accommodations found. Try adjusting your filters.</div>';
-      } else {
-        accommodations.forEach(acc => {
-          const card = document.createElement('div');
-          card.className = 'accommodation-card';
-          
-          const facilityIcons = { 'wifi': '📶', 'pool': '🏊', 'parking': '🅿️', 'gym': '💪', 'spa': '💆', 'restaurant': '🍽️', 'breakfast': '🥐', 'beach': '🏖️' };
-          const topFacilities = acc.facilities.slice(0, 6);
-          const facilitiesHTML = topFacilities.map(f => {
-            const icon = Object.keys(facilityIcons).find(key => f.includes(key));
-            return '<span class="facility">' + (icon ? facilityIcons[icon] + ' ' : '') + f.replace(/-/g, ' ') + '</span>';
-          }).join('');
-          
-          const sustainabilityHTML = acc.sustainability && acc.sustainability.certified ? '<div class="sustainability-badge">🌱 Travel Sustainable Level ' + acc.sustainability.level + '</div>' : '';
-          
-          card.innerHTML = sustainabilityHTML + '<img src="' + (acc.mainImage || 'https://via.placeholder.com/280x220') + '" class="accommodation-image" onerror="this.src=\'https://via.placeholder.com/280x220\'"><div class="accommodation-info"><div class="accommodation-header"><div><div class="accommodation-type">' + acc.type + '</div><div class="accommodation-name">' + acc.name + '</div></div><div class="accommodation-price"><div class="price-amount">$' + acc.pricePerNight + '</div><div class="price-label">per night</div></div></div><div class="accommodation-rating"><span class="rating-badge">' + acc.rating.toFixed(1) + '</span><span class="rating-text">' + acc.reviewScore + '</span><span class="review-count">(' + acc.reviewCount.toLocaleString() + ' reviews)</span></div><div class="accommodation-location">📍 ' + acc.location.distance + '</div><div class="facilities">' + facilitiesHTML + '</div><div class="cancellation">' + acc.cancellation + '</div></div>';
-          
-          card.addEventListener('click', () => {
-            if (window.parent && window.parent.postMessage) {
-              window.parent.postMessage({ type: 'accommodation-selected', data: { id: acc.id, name: acc.name } }, '*');
-            }
-          });
-          
-          container.appendChild(card);
-        });
-      }
-      
-      root.appendChild(container);
-    })();
-  </script>
-</body>
-</html>`;
-
-function widgetMeta() {
+function widgetDescriptorMeta() {
   return {
     "openai/outputTemplate": WIDGET.templateUri,
     "openai/toolInvocation/invoking": WIDGET.invoking,
     "openai/toolInvocation/invoked": WIDGET.invoked,
     "openai/widgetAccessible": true,
     "openai/resultCanProduceWidget": true,
-  };
+  } as const;
+}
+
+function widgetInvocationMeta() {
+  return {
+    "openai/toolInvocation/invoking": WIDGET.invoking,
+    "openai/toolInvocation/invoked": WIDGET.invoked,
+  } as const;
 }
 
 // Zod parser
@@ -172,7 +74,7 @@ const tool = {
     },
     required: ["destination"],
   },
-  _meta: widgetMeta(),
+  _meta: widgetDescriptorMeta(),
   annotations: { destructiveHint: false, openWorldHint: false, readOnlyHint: true },
 };
 
@@ -181,7 +83,7 @@ const resource = {
   name: WIDGET.title,
   description: `${WIDGET.title} widget markup`,
   mimeType: "text/html+skybridge",
-  _meta: widgetMeta(),
+  _meta: widgetDescriptorMeta(),
 };
 
 const resourceTemplate = {
@@ -189,7 +91,7 @@ const resourceTemplate = {
   name: WIDGET.title,
   description: `${WIDGET.title} widget markup`,
   mimeType: "text/html+skybridge",
-  _meta: widgetMeta(),
+  _meta: widgetDescriptorMeta(),
 };
 
 // Cloudflare Worker handler
@@ -205,13 +107,6 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
-    }
-
-    if (url.pathname === "/mcp" && request.method === "GET") {
-      return new Response("SSE not fully supported. Use POST /mcp/rpc", {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "text/plain" },
-      });
     }
 
     if (url.pathname === "/mcp/rpc" && request.method === "POST") {
@@ -243,11 +138,13 @@ export default {
               });
             }
 
+            // Return the widget HTML just like server.ts does
             response = {
               contents: [{
-                uri,
+                uri: WIDGET.templateUri,
                 mimeType: "text/html+skybridge",
-                text: UI_COMPONENT,
+                text: WIDGET_HTML,
+                _meta: widgetDescriptorMeta(),
               }],
             };
             break;
@@ -387,7 +284,7 @@ async function handleToolCall(args: any) {
         rating: parsed.rating,
       },
     },
-    _meta: widgetMeta(),
+    _meta: widgetInvocationMeta(),
   };
 }
 

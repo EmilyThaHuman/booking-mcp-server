@@ -28,7 +28,7 @@ import { z } from "zod";
 
 // Environment configuration
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "";
-const RAPIDAPI_HOST = "booking-com13.p.rapidapi.com";
+const RAPIDAPI_HOST = "booking-com.p.rapidapi.com";
 
 type BookingWidget = {
   id: string;
@@ -41,23 +41,49 @@ type BookingWidget = {
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = path.resolve(__dirname, "..");
-const UI_COMPONENTS_DIR = path.resolve(ROOT_DIR, "ui-components");
+const ROOT_DIR = path.resolve(__dirname, "..", "..");
+const ASSETS_DIR = path.resolve(ROOT_DIR, "assets");
 
 function readWidgetHtml(componentName: string): string {
-  if (!fs.existsSync(UI_COMPONENTS_DIR)) {
-    console.warn(`Widget components directory not found at ${UI_COMPONENTS_DIR}`);
-    return `<!DOCTYPE html><html><body><div id="root">Widget: ${componentName}</div></body></html>`;
+  if (!fs.existsSync(ASSETS_DIR)) {
+    throw new Error(
+      `Widget assets not found. Expected directory ${ASSETS_DIR}. Run "npm run build" before starting the server.`
+    );
   }
 
-  const htmlPath = path.join(UI_COMPONENTS_DIR, `${componentName}.html`);
-  
-  if (fs.existsSync(htmlPath)) {
-    return fs.readFileSync(htmlPath, "utf8");
+  // Try direct path first
+  const directPath = path.join(ASSETS_DIR, `${componentName}.html`);
+  let htmlContents: string | null = null;
+
+  if (fs.existsSync(directPath)) {
+    htmlContents = fs.readFileSync(directPath, "utf8");
   } else {
-    console.warn(`Widget HTML for "${componentName}" not found`);
-    return `<!DOCTYPE html><html><body><div id="root">Widget: ${componentName}</div></body></html>`;
+    // Check for versioned files like "component-hash.html"
+    const candidates = fs
+      .readdirSync(ASSETS_DIR)
+      .filter(
+        (file) => file.startsWith(`${componentName}-`) && file.endsWith(".html")
+      )
+      .sort();
+    const fallback = candidates[candidates.length - 1];
+    if (fallback) {
+      htmlContents = fs.readFileSync(path.join(ASSETS_DIR, fallback), "utf8");
+    } else {
+      // Check in src/components subdirectory as fallback
+      const nestedPath = path.join(ASSETS_DIR, "src", "components", `${componentName}.html`);
+      if (fs.existsSync(nestedPath)) {
+        htmlContents = fs.readFileSync(nestedPath, "utf8");
+      }
+    }
   }
+
+  if (!htmlContents) {
+    throw new Error(
+      `Widget HTML for "${componentName}" not found in ${ASSETS_DIR}. Run "npm run build" to generate the assets.`
+    );
+  }
+
+  return htmlContents;
 }
 
 function widgetMeta(widget: BookingWidget) {
@@ -72,12 +98,12 @@ function widgetMeta(widget: BookingWidget) {
 
 const widgets: BookingWidget[] = [
   {
-    id: "accomodations.search",
+    id: "accommodations_search",
     title: "Booking.com Accommodation Search",
-    templateUri: "ui://widget/booking-com-search-results.html",
+    templateUri: "ui://widget/booking-search-results.html",
     invoking: "Searching for stays on Booking.com...",
     invoked: "Results from Booking.com ready",
-    html: readWidgetHtml("booking-com-search-results"),
+    html: readWidgetHtml("booking-search-results"),
     responseText: "Found matching accommodations",
   },
 ];
@@ -247,37 +273,39 @@ async function searchAccommodationsAPI(params: {
   rating?: number;
 }) {
   if (!RAPIDAPI_KEY) {
-    console.warn("[server.ts][245] --> RAPIDAPI_KEY not set, using mock data");
+    console.warn("[server.ts] --> RAPIDAPI_KEY not set, using mock data");
     return null;
   }
 
   try {
-    // First, search for destination
-    const searchUrl = `https://${RAPIDAPI_HOST}/booking/searchDestinations`;
-    const searchParams = new URLSearchParams({
-      query: params.destination,
+    // First, search for destination to get dest_id
+    const locationsUrl = `https://${RAPIDAPI_HOST}/v1/hotels/locations`;
+    const locationsParams = new URLSearchParams({
+      name: params.destination,
+      locale: 'en-gb',
     });
 
-    const searchResponse = await fetch(`${searchUrl}?${searchParams}`, {
+    const locationsResponse = await fetch(`${locationsUrl}?${locationsParams}`, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": RAPIDAPI_HOST,
+        "x-rapidapi-key": RAPIDAPI_KEY,
+        "x-rapidapi-host": RAPIDAPI_HOST,
       },
     });
 
-    if (!searchResponse.ok) {
-      console.error("[server.ts][268] --> Failed to search destination:", searchResponse.statusText);
+    if (!locationsResponse.ok) {
+      console.error("[server.ts] --> Failed to search location:", locationsResponse.statusText);
       return null;
     }
 
-    const searchData = await searchResponse.json();
-    if (!searchData.data || searchData.data.length === 0) {
-      console.warn("[server.ts][274] --> No destination found for:", params.destination);
+    const locationsData: any = await locationsResponse.json();
+    if (!locationsData || !Array.isArray(locationsData) || locationsData.length === 0) {
+      console.warn("[server.ts] --> No location found for:", params.destination);
       return null;
     }
 
-    const destId = searchData.data[0].dest_id;
+    const destId = locationsData[0].dest_id;
+    const destType = locationsData[0].dest_type || 'city';
 
     // Calculate dates if not provided
     let checkIn = params.checkIn;
@@ -289,67 +317,73 @@ async function searchAccommodationsAPI(params: {
       checkOut = checkOut || new Date(today.getTime() + (7 + (params.nights || 3)) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     }
 
-    // Search for accommodations
-    const hotelsUrl = `https://${RAPIDAPI_HOST}/booking/searchHotels`;
-    const hotelsParams = new URLSearchParams({
-      dest_id: destId,
-      search_type: "city",
-      arrival_date: checkIn,
-      departure_date: checkOut,
-      adults: String(params.adults || 2),
-      children_age: params.children ? String(params.children) : "0",
-      room_qty: String(params.rooms || 1),
-      page_number: "1",
-      units: "metric",
-      temperature_unit: "c",
-      languagecode: "en-us",
-      currency_code: "USD",
+    // Search for hotels
+    const searchUrl = `https://${RAPIDAPI_HOST}/v1/hotels/search`;
+    const searchParams = new URLSearchParams({
+      checkout_date: checkOut,
+      units: 'metric',
+      dest_id: String(destId),
+      dest_type: destType,
+      locale: 'en-gb',
+      adults_number: String(params.adults || 2),
+      order_by: 'popularity',
+      filter_by_currency: 'USD',
+      checkin_date: checkIn,
+      room_number: String(params.rooms || 1),
+      children_number: String(params.children || 0),
+      page_number: '0',
+      include_adjacency: 'true',
+      children_ages: '5,0',
+      categories_filter_ids: 'class::2,class::4,free_cancellation::1',
     });
 
-    const hotelsResponse = await fetch(`${hotelsUrl}?${hotelsParams}`, {
+    const searchResponse = await fetch(`${searchUrl}?${searchParams}`, {
       method: "GET",
       headers: {
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": RAPIDAPI_HOST,
+        "x-rapidapi-key": RAPIDAPI_KEY,
+        "x-rapidapi-host": RAPIDAPI_HOST,
       },
     });
 
-    if (!hotelsResponse.ok) {
-      console.error("[server.ts][319] --> Failed to search accommodations:", hotelsResponse.statusText);
+    if (!searchResponse.ok) {
+      console.error("[server.ts] --> Failed to search accommodations:", searchResponse.statusText);
       return null;
     }
 
-    const hotelsData = await hotelsResponse.json();
+    const searchData: any = await searchResponse.json();
     
     // Transform API response to our format
-    const accommodations = (hotelsData.data?.hotels || [])
+    const accommodations = (searchData.result || [])
       .slice(0, 10)
       .map((hotel: any) => ({
-        id: hotel.hotel_id || hotel.id,
-        name: hotel.property?.name || hotel.hotel_name,
-        type: determineAccommodationType(hotel.property?.accommodationType || "hotel"),
+        id: String(hotel.hotel_id),
+        name: hotel.hotel_name || hotel.hotel_name_trans,
+        type: determineAccommodationType(hotel.accommodation_type_name || 'hotel'),
         destination: params.destination,
-        pricePerNight: Math.round(hotel.property?.priceBreakdown?.grossPrice?.value || hotel.min_total_price || 0),
-        totalPrice: Math.round((hotel.property?.priceBreakdown?.grossPrice?.value || hotel.min_total_price || 0) * (params.nights || 3)),
-        currency: "USD",
-        images: hotel.property?.photoUrls || [hotel.max_photo_url] || ["https://via.placeholder.com/800x600"],
-        mainImage: hotel.property?.photoUrls?.[0] || hotel.max_photo_url || "https://via.placeholder.com/800x600",
-        rating: hotel.property?.reviewScore || hotel.review_score || 8.0,
-        reviewScore: getReviewScore(hotel.property?.reviewScore || hotel.review_score || 8.0),
-        reviewCount: hotel.property?.reviewCount || hotel.review_nr || 0,
+        pricePerNight: Math.round(hotel.min_total_price / (params.nights || 1)),
+        totalPrice: Math.round(hotel.min_total_price || 0),
+        currency: hotel.currency_code || 'USD',
+        images: [hotel.max_1440_photo_url || hotel.max_photo_url],
+        mainImage: hotel.max_1440_photo_url || hotel.max_photo_url || 'https://via.placeholder.com/800x600',
+        rating: hotel.review_score || 8.0,
+        reviewScore: hotel.review_score_word || getReviewScore(hotel.review_score || 8.0),
+        reviewCount: hotel.review_nr || 0,
         location: {
-          address: hotel.property?.address || "N/A",
-          city: params.destination,
-          distance: hotel.property?.distance || `${hotel.distance || 0} km from city center`,
-          landmark: hotel.property?.landmark || "City center",
-          coordinates: hotel.property?.coordinates || { latitude: 0, longitude: 0 },
+          address: hotel.address || hotel.address_trans || 'N/A',
+          city: hotel.city || params.destination,
+          distance: hotel.distance_to_cc_formatted || `${hotel.distance || 0} km from city center`,
+          landmark: hotel.district || 'City center',
+          coordinates: {
+            latitude: hotel.latitude || 0,
+            longitude: hotel.longitude || 0,
+          },
         },
-        facilities: hotel.property?.facilities || extractFacilities(hotel.hotel_facilities),
-        cancellation: hotel.property?.freeCancellation ? "Free cancellation" : "Non-refundable",
-        breakfast: hotel.property?.mealPlan || "Breakfast options available",
+        facilities: extractFacilitiesFromIds(hotel.hotel_facilities),
+        cancellation: hotel.is_free_cancellable ? 'Free cancellation' : 'Non-refundable',
+        breakfast: hotel.ribbon_text || 'Breakfast options available',
         sustainability: {
-          certified: hotel.property?.sustainabilityLevel > 0,
-          level: hotel.property?.sustainabilityLevel || 0,
+          certified: false,
+          level: 0,
         },
       }));
 
@@ -378,7 +412,7 @@ async function searchAccommodationsAPI(params: {
 
     return filtered;
   } catch (error) {
-    console.error("[server.ts][387] --> Error searching accommodations:", error);
+    console.error("[server.ts] --> Error searching accommodations:", error);
     return null;
   }
 }
@@ -415,16 +449,88 @@ function extractFacilities(facilities: any): string[] {
   if (Array.isArray(facilities)) {
     return facilities.map((f: any) => f.name || f).filter(Boolean);
   }
-  return ["wifi", "parking"];
+  return ["Wifi", "Parking"];
+}
+
+// Helper to extract facilities from facility IDs (Booking.com v1 API)
+function extractFacilitiesFromIds(facilityIds: string): string[] {
+  if (!facilityIds) return ["Wifi", "Parking"];
+  
+  // Common facility mappings based on Booking.com facility IDs
+  const facilityMap: Record<string, string> = {
+    '2': 'Parking',
+    '3': 'Restaurant',
+    '4': '24-hour front desk',
+    '6': 'Non-smoking rooms',
+    '7': 'Facilities for disabled guests',
+    '8': 'Family rooms',
+    '11': 'Airport shuttle',
+    '14': 'Spa and wellness centre',
+    '16': 'Bar',
+    '17': 'Breakfast',
+    '20': 'Free toiletries',
+    '22': 'Hairdryer',
+    '28': 'Car rental',
+    '47': 'Safety deposit box',
+    '48': 'Heating',
+    '51': 'Soundproof rooms',
+    '53': 'Express check-in/check-out',
+    '54': 'Packed lunches',
+    '75': 'Designated smoking area',
+    '81': 'Sun terrace',
+    '91': 'VIP room facilities',
+    '96': 'Bridal suite',
+    '107': 'Private check-in/check-out',
+    '108': 'Swimming pool',
+    '109': 'Terrace',
+    '111': 'Ironing facilities',
+    '121': 'Hot tub',
+    '124': 'Fitness centre',
+    '158': 'Gift shop',
+    '160': 'Ticket service',
+    '163': 'Business centre',
+    '177': 'Air conditioning',
+    '181': 'Electric kettle',
+    '184': 'WiFi',
+    '421': 'Mini golf',
+    '436': 'BBQ facilities',
+    '439': 'Meeting/banquet facilities',
+    '449': 'Bicycle rental',
+    '455': 'Massage',
+    '459': 'Concierge service',
+    '466': 'Lift',
+    '490': 'Room service',
+    '491': 'Currency exchange',
+    '495': 'Laundry',
+    '517': 'Shops on site',
+  };
+
+  const ids = facilityIds.split(',').map(id => id.trim());
+  const facilities: string[] = [];
+  
+  // Get first 6 matched facilities
+  for (const id of ids) {
+    if (facilityMap[id]) {
+      facilities.push(facilityMap[id]);
+      if (facilities.length >= 6) break;
+    }
+  }
+  
+  // Ensure we have at least some facilities
+  if (facilities.length === 0) {
+    return ['WiFi', 'Parking', '24-hour front desk'];
+  }
+  
+  return facilities;
 }
 
 const tools: Tool[] = [
   {
-    name: "accomodations.search",
+    name: "accommodations_search",
     description:
       "Use this when the user wants to find, search, view or compare different accommodation types for their trip, for example, hotels, hostels, apartments, homes, guest houses, lodging, chalets, amongst many more. The user can find accommodations by destination, dates, number of nights, guests, budget, landmarks, and/or facilities (e.g., pool, parking, free breakfast, gym, all‑inclusive, family‑friendly). LLM must provide a city or, if a city is not available, resolve the destination to coordinates. Returns available accommodation options with price, photos, guest ratings, and facilities.",
     inputSchema: accommodationSearchInputSchema,
-    _meta: widgetMeta(widgetsById.get("accomodations.search")!),
+    _meta: widgetMeta(widgetsById.get("accommodations_search")!),
     annotations: {
       destructiveHint: false,
       openWorldHint: false,
@@ -513,7 +619,7 @@ function createBookingServer(): Server {
     async (request: CallToolRequest) => {
       const toolName = request.params.name;
 
-      if (toolName === "accomodations.search") {
+      if (toolName === "accommodations_search") {
         const args = accommodationSearchInputParser.parse(
           request.params.arguments ?? {}
         );
@@ -537,58 +643,139 @@ function createBookingServer(): Server {
 
         // Fallback to mock data if API call fails
         if (!accommodations || accommodations.length === 0) {
-          console.warn("[server.ts][550] --> Using mock accommodation data");
+          console.warn("[server.ts][550] --> Using mock accommodation data from real Booking.com sample");
           const mockAccommodations = [
             {
-              id: "b1",
-              name: "Grand Hotel & Spa",
+              id: "7696424",
+              name: "STAGES HOTEL Prague, a Tribute Portfolio Hotel",
               type: "hotel",
               destination: args.destination,
-              pricePerNight: 185,
-              totalPrice: (args.nights || 3) * 185,
+              pricePerNight: 220,
+              totalPrice: (args.nights || 3) * 220,
               currency: "USD",
               images: [
-                "https://via.placeholder.com/800x600",
-                "https://via.placeholder.com/800x600",
+                "https://cf.bstatic.com/xdata/images/hotel/max1280x900/430825435.jpg?k=3e8a521794862527b7c7ab2316a108088ddb3c23e39d861aa63322e7d0534c7d&o=",
+                "https://cf.bstatic.com/xdata/images/hotel/1440x1440/430825435.jpg?k=3e8a521794862527b7c7ab2316a108088ddb3c23e39d861aa63322e7d0534c7d&o=",
               ],
-              mainImage: "https://via.placeholder.com/800x600",
-              rating: 8.9,
-              reviewScore: "Excellent",
-              reviewCount: 2847,
+              mainImage: "https://cf.bstatic.com/xdata/images/hotel/max1280x900/430825435.jpg?k=3e8a521794862527b7c7ab2316a108088ddb3c23e39d861aa63322e7d0534c7d&o=",
+              rating: 9.4,
+              reviewScore: "Superb",
+              reviewCount: 15982,
               location: {
-                address: "123 Main Street",
+                address: "Ceskomoravska 19a",
                 city: args.destination,
-                distance: "0.5 km from city center",
-                landmark: args.landmark || "Central Station",
-                coordinates: args.coordinates || { latitude: 40.7128, longitude: -74.006 },
+                distance: "5.6 km from city center",
+                landmark: args.landmark || "Prague 9",
+                coordinates: { latitude: 50.104384958882, longitude: 14.4953591788171 },
               },
               facilities: [
-                "free-wifi",
-                "pool",
-                "spa",
-                "gym",
-                "restaurant",
-                "parking",
-                "airport-shuttle",
+                "WiFi",
+                "Parking",
+                "Restaurant",
+                "24-hour front desk",
+                "Fitness centre",
+                "Bar",
+                "Spa and wellness centre",
+                "Room service",
               ],
-              cancellation: "Free cancellation until 24 hours before check-in",
+              cancellation: "Free cancellation",
               breakfast: "Breakfast included",
               sustainability: {
-                certified: true,
-                level: 2,
+                certified: false,
+                level: 0,
               },
             },
             {
-              id: "b2",
-              name: "Cozy Downtown Apartment",
+              id: "77320",
+              name: "Hotel Duo & Wellness",
+              type: "hotel",
+              destination: args.destination,
+              pricePerNight: 165,
+              totalPrice: (args.nights || 3) * 165,
+              currency: "USD",
+              images: [
+                "https://cf.bstatic.com/xdata/images/hotel/max1280x900/493721137.jpg?k=058b6988395d2c397c8da154e92d9ab4022b0f3c4a6e59703e69c242fb2e9fdd&o=",
+              ],
+              mainImage: "https://cf.bstatic.com/xdata/images/hotel/max1280x900/493721137.jpg?k=058b6988395d2c397c8da154e92d9ab4022b0f3c4a6e59703e69c242fb2e9fdd&o=",
+              rating: 8.7,
+              reviewScore: "Excellent",
+              reviewCount: 11781,
+              location: {
+                address: "Teplická 492",
+                city: args.destination,
+                distance: "6.8 km from city center",
+                landmark: args.landmark || "Prague 9",
+                coordinates: { latitude: 50.1203, longitude: 14.5156 },
+              },
+              facilities: [
+                "WiFi",
+                "Swimming pool",
+                "Spa and wellness centre",
+                "Parking",
+                "Restaurant",
+                "Bar",
+                "Fitness centre",
+                "Room service",
+              ],
+              cancellation: "Free cancellation",
+              breakfast: "Breakfast available",
+              sustainability: {
+                certified: false,
+                level: 0,
+              },
+            },
+            {
+              id: "mock_resort",
+              name: "Luxury Beach Resort & Spa",
+              type: "resort",
+              destination: args.destination,
+              pricePerNight: 389,
+              totalPrice: (args.nights || 3) * 389,
+              currency: "USD",
+              images: [
+                "https://cf.bstatic.com/xdata/images/hotel/max1280x900/400000000.jpg",
+              ],
+              mainImage: "https://cf.bstatic.com/xdata/images/hotel/max1280x900/400000000.jpg",
+              rating: 9.5,
+              reviewScore: "Exceptional",
+              reviewCount: 1523,
+              location: {
+                address: "789 Beachfront Drive",
+                city: args.destination,
+                distance: "3.2 km from city center",
+                landmark: args.landmark || "Beach",
+                coordinates: { latitude: 40.7128, longitude: -74.006 },
+              },
+              facilities: [
+                "WiFi",
+                "Swimming pool",
+                "Spa and wellness centre",
+                "Restaurant",
+                "Beach access",
+                "Bar",
+                "Fitness centre",
+                "Airport shuttle",
+              ],
+              cancellation: "Non-refundable",
+              breakfast: "All-inclusive (all meals included)",
+              sustainability: {
+                certified: true,
+                level: 3,
+              },
+            },
+            {
+              id: "mock_apartment",
+              name: "Modern City Center Apartment",
               type: "apartment",
               destination: args.destination,
-              pricePerNight: 120,
-              totalPrice: (args.nights || 3) * 120,
+              pricePerNight: 145,
+              totalPrice: (args.nights || 3) * 145,
               currency: "USD",
-              images: ["https://via.placeholder.com/800x600"],
-              mainImage: "https://via.placeholder.com/800x600",
-              rating: 9.2,
+              images: [
+                "https://cf.bstatic.com/xdata/images/hotel/max1280x900/300000000.jpg",
+              ],
+              mainImage: "https://cf.bstatic.com/xdata/images/hotel/max1280x900/300000000.jpg",
+              rating: 9.1,
               reviewScore: "Superb",
               reviewCount: 456,
               location: {
@@ -596,14 +783,16 @@ function createBookingServer(): Server {
                 city: args.destination,
                 distance: "0.2 km from city center",
                 landmark: args.landmark || "Main Square",
-                coordinates: args.coordinates || { latitude: 40.7128, longitude: -74.006 },
+                coordinates: { latitude: 40.7128, longitude: -74.006 },
               },
               facilities: [
-                "free-wifi",
-                "kitchen",
-                "parking",
-                "family-friendly",
-                "washing-machine",
+                "WiFi",
+                "Kitchen",
+                "Parking",
+                "Family rooms",
+                "Laundry",
+                "Heating",
+                "Air conditioning",
               ],
               cancellation: "Free cancellation until 3 days before check-in",
               breakfast: "Self-catering",
@@ -613,45 +802,42 @@ function createBookingServer(): Server {
               },
             },
             {
-              id: "b3",
-              name: "Luxury Beach Resort",
-              type: "resort",
+              id: "mock_villa",
+              name: "Secluded Mountain Villa",
+              type: "villa",
               destination: args.destination,
-              pricePerNight: 389,
-              totalPrice: (args.nights || 3) * 389,
+              pricePerNight: 475,
+              totalPrice: (args.nights || 3) * 475,
               currency: "USD",
               images: [
-                "https://via.placeholder.com/800x600",
-                "https://via.placeholder.com/800x600",
-                "https://via.placeholder.com/800x600",
+                "https://cf.bstatic.com/xdata/images/hotel/max1280x900/500000000.jpg",
               ],
-              mainImage: "https://via.placeholder.com/800x600",
-              rating: 9.5,
+              mainImage: "https://cf.bstatic.com/xdata/images/hotel/max1280x900/500000000.jpg",
+              rating: 9.8,
               reviewScore: "Exceptional",
-              reviewCount: 1523,
+              reviewCount: 287,
               location: {
-                address: "789 Beachfront Drive",
+                address: "Mountain Ridge Road 15",
                 city: args.destination,
-                distance: "3.2 km from city center",
-                landmark: args.landmark || "Beach",
-                coordinates: args.coordinates || { latitude: 40.7128, longitude: -74.006 },
+                distance: "12 km from city center",
+                landmark: args.landmark || "Mountain View",
+                coordinates: { latitude: 40.7128, longitude: -74.006 },
               },
               facilities: [
-                "free-wifi",
-                "pool",
-                "spa",
-                "gym",
-                "restaurant",
-                "beach-access",
-                "all-inclusive",
-                "kids-club",
-                "tennis-court",
+                "WiFi",
+                "Swimming pool",
+                "Kitchen",
+                "Parking",
+                "Terrace",
+                "BBQ facilities",
+                "Heating",
+                "Family rooms",
               ],
-              cancellation: "Non-refundable",
-              breakfast: "All-inclusive (all meals included)",
+              cancellation: "Free cancellation until 7 days before check-in",
+              breakfast: "Self-catering",
               sustainability: {
                 certified: true,
-                level: 3,
+                level: 2,
               },
             },
           ];
@@ -660,29 +846,29 @@ function createBookingServer(): Server {
           accommodations = mockAccommodations;
           
           if (args.accommodationType) {
-            accommodations = accommodations.filter(
-              (acc) => acc.type === args.accommodationType
+            accommodations = accommodations      .filter(
+              (acc: any) => acc.type === args.accommodationType
             );
           }
           if (args.minPrice) {
-            accommodations = accommodations.filter(
-              (acc) => acc.pricePerNight >= args.minPrice!
+            accommodations = accommodations      .filter(
+              (acc: any) => acc.pricePerNight >= args.minPrice!
             );
           }
           if (args.maxPrice) {
-            accommodations = accommodations.filter(
-              (acc) => acc.pricePerNight <= args.maxPrice!
+            accommodations = accommodations      .filter(
+              (acc: any) => acc.pricePerNight <= args.maxPrice!
             );
           }
           if (args.rating) {
-            accommodations = accommodations.filter(
-              (acc) => acc.rating >= args.rating!
+            accommodations = accommodations      .filter(
+              (acc: any) => acc.rating >= args.rating!
             );
           }
           if (args.facilities && args.facilities.length > 0) {
-            accommodations = accommodations.filter((acc) =>
-              args.facilities!.every((facility) =>
-                acc.facilities.some((f) => f.includes(facility.toLowerCase()))
+            accommodations = accommodations.filter((acc: any) =>
+              args.facilities!.every((facility: string) =>
+                acc.facilities.some((f: string) => f.includes(facility.toLowerCase()))
               )
             );
           }
@@ -833,7 +1019,7 @@ const httpServer = createServer(
   }
 );
 
-httpServer.on("clientError", (err: Error, socket) => {
+httpServer.on("clientError", (err: Error, socket: any) => {
   console.error("HTTP client error", err);
   socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
