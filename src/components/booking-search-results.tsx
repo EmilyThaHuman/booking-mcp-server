@@ -447,7 +447,7 @@ const BookingSearchResults: React.FC = () => {
             )}
             aria-label="Show previous card"
           >
-            <svg className="w-6 h-6 stroke-foreground" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
           </button>
@@ -462,7 +462,7 @@ const BookingSearchResults: React.FC = () => {
             )}
             aria-label="Show next card"
           >
-            <svg className="w-6 h-6 stroke-foreground" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>
