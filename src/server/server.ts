@@ -984,6 +984,96 @@ async function handlePostMessage(
   }
 }
 
+// Handle direct JSON-RPC requests without SSE (for resource fetching)
+async function handleDirectJsonRpc(
+  req: IncomingMessage,
+  res: ServerResponse
+) {
+  let body = "";
+  
+  req.on("data", (chunk) => {
+    body += chunk.toString();
+  });
+
+  req.on("end", async () => {
+    try {
+      const request = JSON.parse(body);
+      console.log("[handleDirectJsonRpc] Request:", request);
+
+      // Handle resources/read for widget fetching
+      if (request.method === "resources/read") {
+        const uri = request.params?.uri;
+        const widget = widgetsByUri.get(uri);
+
+        if (!widget) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            id: request.id,
+            error: {
+              code: -32602,
+              message: `Unknown resource: ${uri}`,
+            },
+          }));
+          return;
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: {
+            contents: [
+              {
+                uri: widget.templateUri,
+                mimeType: "text/html+skybridge",
+                text: widget.html,
+                _meta: widgetMeta(widget),
+              },
+            ],
+          },
+        }));
+        return;
+      }
+
+      // Handle resources/list
+      if (request.method === "resources/list") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: {
+            resources: resources,
+          },
+        }));
+        return;
+      }
+
+      // Method not supported in direct mode
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.id,
+        error: {
+          code: -32601,
+          message: `Method not supported in direct mode: ${request.method}`,
+        },
+      }));
+    } catch (error: any) {
+      console.error("[handleDirectJsonRpc] Error:", error);
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32700,
+          message: "Parse error",
+        },
+      }));
+    }
+  });
+}
+
 const portEnv = Number(process.env.PORT ?? 8000);
 const port = Number.isFinite(portEnv) ? portEnv : 8000;
 
@@ -1034,6 +1124,12 @@ const httpServer = createServer(
 
     if (req.method === "POST" && url.pathname === postPath) {
       await handlePostMessage(req, res, url);
+      return;
+    }
+
+    // Handle direct JSON-RPC POST to /mcp (for resource fetching without SSE)
+    if (req.method === "POST" && url.pathname === ssePath) {
+      await handleDirectJsonRpc(req, res);
       return;
     }
 
