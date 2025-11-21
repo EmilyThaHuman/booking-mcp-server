@@ -28,7 +28,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen transition-colors duration-200 flex flex-col items-center justify-center p-4">
       {/* Theme Toggle Button */}
       <div className="fixed top-4 right-4 z-50">
         <button

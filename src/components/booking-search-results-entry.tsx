@@ -4,6 +4,10 @@ import BookingSearchResults from './booking-search-results';
 
 // Listen for theme from parent window
 const initializeTheme = () => {
+  // Set transparent background
+  document.body.style.background = 'transparent';
+  document.documentElement.style.background = 'transparent';
+  
   // Check if theme is provided via window global
   const theme = (window as any).__THEME__ || 'light';
   
