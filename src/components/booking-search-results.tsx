@@ -311,7 +311,7 @@ const BookingSearchResults: React.FC = () => {
 
   if (accommodations.length === 0) {
     return (
-      <div className="w-full p-10 text-center text-gray-500 dark:text-gray-400">
+      <div className="w-full p-10 text-center text-muted-foreground">
         No accommodations found
       </div>
     );
@@ -378,16 +378,16 @@ const BookingSearchResults: React.FC = () => {
                         </div>
                       </div>
                       
-                      <h3 className="text-base font-semibold leading-snug text-gray-900 dark:text-gray-100 mb-1 line-clamp-2">
+                      <h3 className="text-base font-semibold leading-snug text-foreground mb-1 line-clamp-2">
                         {acc.name}
                       </h3>
                       
-                      <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 mb-2">
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
                         {getAccommodationTypeIcon(acc.type)}
                         <span className="capitalize">{acc.type.replace(/-/g, ' ')}</span>
                       </div>
                       
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      <div className="text-sm text-muted-foreground mb-2">
                         {acc.reviewCount ? `${acc.reviewCount.toLocaleString()} reviews` : 'No reviews'}
                       </div>
                       
@@ -396,8 +396,8 @@ const BookingSearchResults: React.FC = () => {
                           {topFacilities.map((facility, idx) => {
                             const icon = getFacilityIcon(facility);
                             return (
-                              <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                                <span className="text-gray-500 dark:text-gray-400">{icon || <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/></svg>}</span>
+                              <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="text-muted-foreground">{icon || <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/></svg>}</span>
                                 <span>{facility}</span>
                               </div>
                             );
@@ -408,10 +408,10 @@ const BookingSearchResults: React.FC = () => {
 
                     <div className="mt-auto pt-3">
                       <div className="flex items-baseline gap-1 mb-2">
-                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                        <div className="text-2xl font-bold text-foreground">
                           ${acc.pricePerNight.toLocaleString()}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-muted-foreground">
                           per night
                         </div>
                       </div>
@@ -447,7 +447,7 @@ const BookingSearchResults: React.FC = () => {
             )}
             aria-label="Show previous card"
           >
-            <svg className="w-6 h-6 stroke-gray-900 dark:stroke-gray-100" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 stroke-foreground" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
           </button>
@@ -462,7 +462,7 @@ const BookingSearchResults: React.FC = () => {
             )}
             aria-label="Show next card"
           >
-            <svg className="w-6 h-6 stroke-gray-900 dark:stroke-gray-100" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-6 h-6 stroke-foreground" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>

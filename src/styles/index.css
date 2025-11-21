@@ -2,7 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --foreground: 17 24 39; /* gray-900 */
+    --muted-foreground: 107 114 128; /* gray-500 */
+  }
+
+  .dark {
+    --foreground: 249 250 251; /* gray-50 */
+    --muted-foreground: 156 163 175; /* gray-400 */
+  }
+}
+
 @layer utilities {
+  .text-foreground {
+    color: rgb(var(--foreground));
+  }
+
+  .text-muted-foreground {
+    color: rgb(var(--muted-foreground));
+  }
+
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
