@@ -1,15 +1,9 @@
 name = "booking-mcp-server"
-main = "src/worker.ts"
+main = "src/server/worker.ts"
 compatibility_date = "2024-01-01"
-node_compat = true
-
-[env.production]
-workers_dev = false
-route = "booking-mcp.yourdomain.workers.dev/*"
-
-[build]
-command = "npm run build"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [vars]
-BASE_URL = "https://booking-mcp.yourdomain.workers.dev"
+BASE_URL = "https://booking-mcp-server.reed-b9b.workers.dev"
 
