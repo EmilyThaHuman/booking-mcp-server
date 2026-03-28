@@ -1,169 +1,91 @@
-# Booking.com MCP Server with OpenAI Apps SDK
+# Booking.com MCP Server
 
-A TypeScript-based Model Context Protocol (MCP) server that integrates Booking.com accommodation search with ChatGPT using the OpenAI Apps SDK. This server provides interactive UI widgets for searching hotels, apartments, hostels, and other accommodations worldwide.
+Model Context Protocol server for Booking.com accommodation search with the ChatGPT Apps SDK. Provides an interactive UI widget for searching hotels and accommodations with rich filtering options.
 
 ## Features
 
-- **Comprehensive Accommodation Search** with support for:
-  - 🏨 Hotels, Apartments, Hostels, Resorts, Villas, Guest Houses, and more
-  - 📅 Flexible date ranges and number of nights
-  - 👥 Multiple guests, children, and rooms
-  - 💰 Budget filtering (min/max price)
-  - ⭐ Star ratings and guest reviews
-  - 🏊 Facilities (pool, parking, gym, breakfast, pet-friendly, etc.)
-  - 📍 Landmark and location-based search
+- **Accommodation Search** with interactive UI widget
+- **Rich Filtering** — destination, dates, guests, rooms, budget, amenities, star rating
+- **OAuth 2.0 Authentication** — secure Booking.com API access
+- **OpenAI Apps SDK** — inline widgets rendered directly in ChatGPT
+- **Railway + Docker** deployment ready
 
-- **Beautiful Interactive Widget** - Booking.com-style cards with photos, ratings, and details
-- **Sustainability Badges** - Shows Travel Sustainable Level certifications
-- **Real API Integration** - Uses RapidAPI for live accommodation data (with mock data fallback)
-- **Cloudflare Workers Ready** - Deploy globally with zero-config scaling
-- **TypeScript** - Fully typed for better development experience
+## Tools
 
-## Quick Start
+### `accommodations_search`
 
-```bash
-cd booking-mcp-server
-npm install
-
-# Optional: Set up API key for real data
-cp .env.example .env
-# Edit .env and add your RAPIDAPI_KEY
-
-npm run dev
-```
-
-## API Setup (Optional)
-
-The server works without an API key using mock data. For real data:
-
-1. Sign up at [RapidAPI](https://rapidapi.com/)
-2. Subscribe to [Booking.com API](https://rapidapi.com/apidojo/api/booking-com13)
-3. Copy your API key to `.env`:
-   ```
-   RAPIDAPI_KEY=your_key_here
-   ```
-
-See [API_SETUP_GUIDE.md](../API_SETUP_GUIDE.md) for detailed instructions.
-
-## Current API Integration
-
-**With RAPIDAPI_KEY:**
-- Real-time accommodation searches from Booking.com
-- Actual prices, availability, and guest reviews
-- Live property details and amenities
-
-**Without RAPIDAPI_KEY:**
-- Automatically uses mock data
-- Perfect for testing and development
-
-## Custom API Integration
-
-### Option 1: Booking.com Affiliate Partner Hub API
-
-1. Sign up for [Booking.com Partner Hub](https://www.booking.com/affiliate-program/v2/index.html)
-2. Get API credentials
-3. Update `src/worker.ts` or `src/server.ts`:
-
-```typescript
-const BOOKING_API_BASE = 'https://distribution-xml.booking.com/2.7/json';
-
-async function searchAccommodations(params: any) {
-  const response = await fetch(`${BOOKING_API_BASE}/hotels`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Basic ${btoa(env.BOOKING_USERNAME + ':' + env.BOOKING_PASSWORD)}`,
-    },
-    params: new URLSearchParams({
-      city_ids: params.cityId,
-      checkin: params.checkIn,
-      checkout: params.checkOut,
-      room: params.adults,
-      // ... other parameters
-    })
-  });
-  
-  return await response.json();
-}
-```
-
-### Option 2: RapidAPI Booking.com
-
-Use [RapidAPI's Booking.com endpoint](https://rapidapi.com/apidojo/api/booking):
-
-```typescript
-async function searchAccommodations(params: any) {
-  const response = await fetch(
-    'https://booking-com.p.rapidapi.com/v1/hotels/search',
-    {
-      method: 'POST',
-      headers: {
-        'X-RapidAPI-Key': env.RAPIDAPI_KEY,
-        'X-RapidAPI-Host': 'booking-com.p.rapidapi.com',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        dest_id: params.destId,
-        checkin_date: params.checkIn,
-        checkout_date: params.checkOut,
-        adults_number: params.adults,
-        // ... other parameters
-      }),
-    }
-  );
-  
-  return await response.json();
-}
-```
-
-## Tool Schema
-
-### accomodations.search
+Search hotels and accommodations on Booking.com.
 
 **Input Parameters:**
-- `destination` (required) - City name or destination
-- `coordinates` - Geographic coordinates if city unavailable
-- `checkIn` - Check-in date (YYYY-MM-DD format)
-- `checkOut` - Check-out date (YYYY-MM-DD format)
-- `nights` - Number of nights
-- `adults` - Number of adults (default: 2)
-- `children` - Number of children (default: 0)
-- `rooms` - Number of rooms (default: 1)
-- `minPrice` - Minimum budget per night
-- `maxPrice` - Maximum budget per night
-- `accommodationType` - Type (hotel, apartment, hostel, resort, etc.)
-- `facilities` - Array of required amenities
-- `landmark` - Nearby landmark or POI
-- `rating` - Minimum guest rating (0-10)
+- `destination` (required) — City name or destination
+- `checkIn` (required) — Check-in date (YYYY-MM-DD)
+- `checkOut` (required) — Check-out date (YYYY-MM-DD)
+- `adults` — Number of adults (default: 2)
+- `children` — Number of children (default: 0)
+- `rooms` — Number of rooms (default: 1)
+- `minBudget` — Minimum budget per night
+- `maxBudget` — Maximum budget per night
+- `accommodationType` — Type of accommodation (hotel, apartment, hostel, etc.)
+- `amenities` — Required facilities (wifi, pool, parking, gym, etc.)
+- `minRating` — Minimum guest rating (0–10)
 
-**Output Widget:** Accommodation cards showing property details, pricing, ratings, facilities, and booking info
-
-## Deployment to Cloudflare Workers
+## Installation
 
 ```bash
-npm install -g wrangler
-wrangler login
-wrangler deploy
+npm install
 ```
 
-Add your API keys as secrets:
+## Environment Variables
+
 ```bash
-wrangler secret put BOOKING_API_KEY
-wrangler secret put RAPIDAPI_KEY
+BOOKING_CLIENT_ID=your_client_id
+BOOKING_CLIENT_SECRET=your_client_secret
+REDIRECT_URI=http://localhost:8000/auth/callback
+PORT=8000
 ```
 
-## Using in ChatGPT
+## Development
 
-Example queries:
-- "Find hotels in Paris from June 15 to June 20"
-- "Show me pet-friendly apartments in Barcelona with parking"
-- "Search for 5-star resorts in Bali with pool and spa under $200/night"
-- "Find family-friendly hostels near Eiffel Tower with free breakfast"
+```bash
+# Run development server
+npm run dev
+
+# Build server and widgets
+npm run build
+
+# Build server only
+npm run build:server
+
+# Build widgets only
+npm run build:widgets
+```
+
+## Deployment
+
+Configured for Railway deployment with Docker. Set environment variables in your Railway project dashboard.
+
+## Architecture
+
+Built with the [OpenAI Apps SDK](https://github.com/openai/openai-apps-sdk-examples) and Model Context Protocol. The accommodation search tool returns rich, interactive widget results directly inside ChatGPT.
 
 ## License
 
-MIT License
+MIT
 
 ---
 
-Built with ❤️ using TypeScript, MCP, and OpenAI Apps SDK
+## Powered by ZeroTwo
 
+This MCP server is part of the [ZeroTwo AI platform](https://zerotwo.ai) — a unified workspace that combines GPT-5, Claude, Gemini, and smart travel integrations like this Booking.com connector into a single subscription.
+
+| | |
+|---|---|
+| 🌐 **[ZeroTwo — All AI Models in One App](https://zerotwo.ai)** | Search hotels and book travel with the help of GPT-5, Claude, and Gemini — all in one place. |
+| ✨ **[ZeroTwo Features](https://zerotwo.ai/features)** | AI chat, image studio, video, web search, documents, and MCP-powered travel tools. |
+| 🤖 **[AI Models — GPT-5, Claude & Gemini](https://zerotwo.ai/zerotwo-models)** | Access every top AI model without juggling multiple subscriptions. |
+| 🔌 **[ZeroTwo Connectors & Integrations](https://zerotwo.ai/connectors)** | Connect Booking.com, Gmail, Airtable, and more to your AI assistant. |
+| 💰 **[ZeroTwo Pricing](https://zerotwo.ai/pricing)** | One subscription that replaces ChatGPT Plus, Claude Pro, and Gemini Advanced. |
+| 📝 **[ZeroTwo Blog](https://zerotwo.ai/blog)** | AI travel tips, updates, and insights from the ZeroTwo team. |
+| 🚀 **[Try ZeroTwo Free](https://app.zerotwo.ai/auth/login)** | Plan your next trip with AI — get started free today. |
+
+> **Built for ZeroTwo** — Use this Booking.com MCP server with [ZeroTwo's AI assistant](https://zerotwo.ai) to search accommodations worldwide using natural language, with beautiful interactive results rendered inline in your chat.
