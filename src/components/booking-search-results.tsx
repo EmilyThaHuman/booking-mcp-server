@@ -31,7 +31,7 @@ interface Props extends Record<string, unknown> {
   filters?: Record<string, unknown>;
 }
 
-const BookingSearchResults: React.FC = () => {
+const BookingSearchResults: React.FC<Partial<Props>> = (externalProps) => {
   const props = useWidgetProps<Props>({
     accommodations: [],
     destination: 'Search Results',
@@ -42,7 +42,10 @@ const BookingSearchResults: React.FC = () => {
     filters: {}
   });
 
-  const { accommodations, destination, checkIn, checkOut, nights, totalResults } = props;
+  // Merge external props (for preview mode) with widget props
+  const finalProps = { ...props, ...externalProps };
+
+  const { accommodations, destination, checkIn, checkOut, nights, totalResults } = finalProps;
   const displayMode = useDisplayMode();
   
   const containerRef = useRef<HTMLDivElement>(null);
